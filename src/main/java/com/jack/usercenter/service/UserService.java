@@ -3,6 +3,8 @@ package com.jack.usercenter.service;
 import com.jack.usercenter.model.domain.User;
 import com.baomidou.mybatisplus.extension.service.IService;
 
+import javax.servlet.http.HttpServletRequest;
+
 /**
 * @author yuguoxin
 * @description 针对表【user(用户)】的数据库操作Service
@@ -11,4 +13,6 @@ import com.baomidou.mybatisplus.extension.service.IService;
 public interface UserService extends IService<User> {
 
     long userRegister(String userAccount, String userPassword, String checkPassword);
+
+    User userLogin(String userAccount, String userPassword, HttpServletRequest request);
 }
