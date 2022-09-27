@@ -1,5 +1,4 @@
 package com.jack.usercenter.service.impl;
-import java.util.Date;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -16,6 +15,8 @@ import javax.servlet.http.HttpServletRequest;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static com.jack.usercenter.constant.UserConstant.USER_LOGIN_STATE;
+
 /**
 * @author yuguoxin
 * @description 针对表【user(用户)】的数据库操作Service实现
@@ -30,7 +31,6 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
     private UserMapper userMapper;
 
     private static final String Salt = "yupi";
-    private static final String USER_LOGIN_STATE = "userLoginState";
 
     @Override
     public long userRegister(String userAccount, String userPassword, String checkPassword) {
@@ -104,6 +104,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         safetyUser.setAvatarUrl(user.getAvatarUrl());
         safetyUser.setGender(user.getGender());
         safetyUser.setPhone(user.getPhone());
+        safetyUser.setUserRole(user.getUserRole());
         safetyUser.setEmail(user.getEmail());
         safetyUser.setUserStatus(user.getUserStatus());
         safetyUser.setCreateTime(user.getCreateTime());
