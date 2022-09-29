@@ -2,6 +2,10 @@ package com.jack.usercenter.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.jack.usercenter.common.BaseResponse;
+import com.jack.usercenter.common.ErrorCode;
+import com.jack.usercenter.common.ResultUtils;
+import com.jack.usercenter.exception.BusinessException;
 import com.jack.usercenter.model.domain.User;
 import com.jack.usercenter.service.UserService;
 import com.jack.usercenter.mapper.UserMapper;
@@ -33,28 +37,40 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
     private static final String Salt = "yupi";
 
     @Override
-    public long userRegister(String userAccount, String userPassword, String checkPassword) {
+    public long userRegister(String userAccount, String userPassword, String checkPassword, String planetCode) {
         //1. 校验
-        if (StringUtils.isAnyBlank(userAccount, userPassword, checkPassword)){
-            return -1;
+        if (StringUtils.isAnyBlank(userAccount, userPassword, checkPassword, planetCode)){
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
         if (userAccount.length()<4 || userPassword.length()<8 || checkPassword.length()<8){
-            return -1;
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        if (planetCode.length()>5){
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
         String validPattern = "^.*[/^/$/.//,;:'!@#%&/*/|/?/+/(/)/[/]/{/}]+.*$";
         Matcher matcher = Pattern.compile(validPattern).matcher(userAccount);
         if (matcher.find()){
-            return -1;
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
         if (!userPassword.equals(checkPassword)){
-            return -1;
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
+        //账户不能重复
         LambdaQueryWrapper<User> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(User::getUserAccount, userAccount);
 
         long count = this.count(queryWrapper);
         if (count>0){
-            return -1;
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        //星球编号不能重复
+        queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(User::getPlanetCode, planetCode);
+
+        count = this.count(queryWrapper);
+        if (count>0){
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
         //2. 对密码进行加密
         String handledPassword = DigestUtils.md5DigestAsHex((Salt + userPassword).getBytes());
@@ -62,26 +78,29 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         User user = new User();
         user.setUserAccount(userAccount);
         user.setUserPassword(handledPassword);
+        user.setPlanetCode(planetCode);
         boolean saveResult = this.save(user);
         if (!saveResult){
-            return -1;
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
-        return user.getId();
+//        return user.getId();
+        long result = user.getId();
+        return result;
     }
 
     @Override
     public User userLogin(String userAccount, String userPassword, HttpServletRequest request) {
-        //1. 检验信息是否合法 TODO: null改为统一的异常处理类
+        //1. 检验信息是否合法
         if (StringUtils.isAnyBlank(userAccount, userPassword)){
-            return null;
+            throw new BusinessException(ErrorCode.NULL_ERROR);
         }
         if (userAccount.length()<4 || userPassword.length()<8){
-            return null;
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
         String validPattern = "^.*[/^/$/.//,;:'!@#%&/*/|/?/+/(/)/[/]/{/}]+.*$";
         Matcher matcher = Pattern.compile(validPattern).matcher(userAccount);
         if (matcher.find()){
-            return null;
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
         //2. 校验密码是否输入正确，要和数据库中的密文密码去对比
         String handledPassword = DigestUtils.md5DigestAsHex((Salt + userPassword).getBytes());
@@ -89,29 +108,49 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         queryWrapper.eq(User::getUserAccount, userAccount);
         User user = userMapper.selectOne(queryWrapper);
         if (user == null){
-            return null;
+            throw new BusinessException(ErrorCode.NULL_ERROR);
         }
         String password = user.getUserPassword();
         if (!password.equals(handledPassword)){
             log.info("login failed, useAccount does not match userPassword!");
-            return null;
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
         //3. 用户信息脱敏，隐藏敏感信息，防止数据库中的字段泄露
-        User safetyUser = new User();
-        safetyUser.setId(user.getId());
-        safetyUser.setUserName(user.getUserName());
-        safetyUser.setUserAccount(user.getUserAccount());
-        safetyUser.setAvatarUrl(user.getAvatarUrl());
-        safetyUser.setGender(user.getGender());
-        safetyUser.setPhone(user.getPhone());
-        safetyUser.setUserRole(user.getUserRole());
-        safetyUser.setEmail(user.getEmail());
-        safetyUser.setUserStatus(user.getUserStatus());
-        safetyUser.setCreateTime(user.getCreateTime());
+        User safetyUser = getSafetyUser(user);
         //4. 记录用户登录态
         request.getSession().setAttribute(USER_LOGIN_STATE, safetyUser);
         //5. 返回脱敏后的用户信息
         return safetyUser;
+    }
+
+    /**
+     * 用户脱敏
+     * @param originUser
+     * @return
+     */
+    public User getSafetyUser(User originUser){
+        if (originUser == null){
+            return null;
+        }
+        User safetyUser = new User();
+        safetyUser.setId(originUser.getId());
+        safetyUser.setUserName(originUser.getUserName());
+        safetyUser.setUserAccount(originUser.getUserAccount());
+        safetyUser.setAvatarUrl(originUser.getAvatarUrl());
+        safetyUser.setGender(originUser.getGender());
+        safetyUser.setPhone(originUser.getPhone());
+        safetyUser.setPlanetCode(originUser.getPlanetCode());
+        safetyUser.setUserRole(originUser.getUserRole());
+        safetyUser.setEmail(originUser.getEmail());
+        safetyUser.setUserStatus(originUser.getUserStatus());
+        safetyUser.setCreateTime(originUser.getCreateTime());
+        return safetyUser;
+    }
+
+    @Override
+    public int userLogout(HttpServletRequest request) {
+        request.getSession().removeAttribute(USER_LOGIN_STATE);
+        return 1;
     }
 }
 

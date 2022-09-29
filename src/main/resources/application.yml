@@ -1,5 +1,7 @@
 server:
   port: 8080
+  servlet:
+    context-path: /api
 
 spring:
   application:
@@ -13,6 +15,7 @@ spring:
 # session 失效时间
   session:
     timeout: 86400
+
 
 mybatis-plus:
   global-config:

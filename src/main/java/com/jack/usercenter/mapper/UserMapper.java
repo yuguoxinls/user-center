@@ -2,6 +2,7 @@ package com.jack.usercenter.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.jack.usercenter.model.domain.User;
+import org.apache.ibatis.annotations.Mapper;
 
 /**
 * @author Administrator
@@ -9,6 +10,7 @@ import com.jack.usercenter.model.domain.User;
 * @createDate 2022-09-27 10:39:50
 * @Entity generator.domain.User
 */
+@Mapper
 public interface UserMapper extends BaseMapper<User> {
 
 }

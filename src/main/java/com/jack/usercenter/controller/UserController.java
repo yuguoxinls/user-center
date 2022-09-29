@@ -1,6 +1,10 @@
 package com.jack.usercenter.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.jack.usercenter.common.BaseResponse;
+import com.jack.usercenter.common.ErrorCode;
+import com.jack.usercenter.common.ResultUtils;
+import com.jack.usercenter.exception.BusinessException;
 import com.jack.usercenter.model.domain.User;
 import com.jack.usercenter.model.domain.request.UserLoginRequest;
 import com.jack.usercenter.model.domain.request.UserRegisterRequest;
@@ -25,21 +29,23 @@ public class UserController {
     private UserService userService;
 
     @PostMapping("/register")
-    public Long userRegister(@RequestBody UserRegisterRequest userRegisterRequest){
+    public BaseResponse<Long> userRegister(@RequestBody UserRegisterRequest userRegisterRequest){
         if (userRegisterRequest == null){
             return null;
         }
         String userAccount = userRegisterRequest.getUserAccount();
         String userPassword = userRegisterRequest.getUserPassword();
         String checkPassword = userRegisterRequest.getCheckPassword();
-        if (StringUtils.isAnyBlank(userAccount, userPassword, checkPassword)){
+        String planetCode = userRegisterRequest.getPlanetCode();
+        if (StringUtils.isAnyBlank(userAccount, userPassword, checkPassword, planetCode)){
             return null;
         }
-        return userService.userRegister(userAccount, userPassword, checkPassword);
+        long result = userService.userRegister(userAccount, userPassword, checkPassword, planetCode);
+        return ResultUtils.success(result);
     }
 
     @PostMapping("/login")
-    public User userLogin(@RequestBody UserLoginRequest userLoginRequest, HttpServletRequest request){
+    public BaseResponse<User> userLogin(@RequestBody UserLoginRequest userLoginRequest, HttpServletRequest request){
         if (userLoginRequest == null){
             return null;
         }
@@ -48,36 +54,66 @@ public class UserController {
         if (StringUtils.isAnyBlank(userAccount, userPassword)){
             return null;
         }
-        return userService.userLogin(userAccount, userPassword, request);
+        User user = userService.userLogin(userAccount, userPassword, request);
+        return ResultUtils.success(user);
     }
 
     @GetMapping("/search")
-    public List<User> searchUsers(String username, HttpServletRequest request){
+    public BaseResponse<List<User>> searchUsers(String username, HttpServletRequest request){
         boolean flag = isAdmin(request);
         if (!flag){
-            return new ArrayList<>();
+            throw new BusinessException(ErrorCode.NO_AUTH);
         }
         LambdaQueryWrapper<User> queryWrapper = new LambdaQueryWrapper<>();
         if (StringUtils.isNotBlank(username)){
             queryWrapper.like(User::getUserName, username);
         }
         List<User> list = userService.list(queryWrapper);
-        return list.stream().map(user -> {
+        List<User> result = list.stream().map(user -> {
             user.setUserPassword(null);
             return user;
         }).collect(Collectors.toList());
+        return ResultUtils.success(result);
     }
 
     @PostMapping("/delete")
-    public boolean deleteUser(@RequestBody int id, HttpServletRequest request){
+    public BaseResponse<Boolean> deleteUser(@RequestBody int id, HttpServletRequest request){
         boolean flag = isAdmin(request);
         if (!flag){
-            return false;
+            throw new BusinessException(ErrorCode.NO_AUTH);
         }
         if (id<=0){
-            return false;
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
-        return userService.removeById(id);
+        boolean b = userService.removeById(id);
+        return ResultUtils.success(b);
+    }
+
+    @GetMapping("/current")
+    public BaseResponse<User> currentUser(HttpServletRequest request){
+        User currentUser = (User) request.getSession().getAttribute(USER_LOGIN_STATE);
+        if (currentUser == null){
+            return null;
+        }
+        //TODO 校验用户是否合法
+        Long id = currentUser.getId();
+        User user = userService.getById(id);
+        String planetCode = user.getPlanetCode();
+        if (StringUtils.isBlank(planetCode)){
+            throw new BusinessException(ErrorCode.NO_AUTH);
+        }
+        User safetyUser = userService.getSafetyUser(user);
+        return ResultUtils.success(safetyUser);
+
+    }
+
+    @GetMapping("/logout")
+    public BaseResponse<Integer> userLogout(HttpServletRequest request){
+        if (request == null){
+            throw new BusinessException(ErrorCode.NULL_ERROR);
+        }
+        int result = userService.userLogout(request);
+        return ResultUtils.success(result);
     }
 
     /**
